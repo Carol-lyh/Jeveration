@@ -76,6 +76,11 @@ def backbone_forward(lm, x, mask, n_decision, rope_pos=None):
     block[:, n - n_decision:] = 0
     full = create_causal_mask(config=lm.config, inputs_embeds=x, attention_mask=mask, past_key_values=None, position_ids=pos[0],
                               block_sequence_ids=block)
+    if isinstance(full, torch.Tensor) and full.dtype == torch.bool:
+        # A padding position attends to nothing, and on MPS scaled_dot_product_attention turns such a row into NaN (the
+        # CPU gives 0), which the linear-attention layers then carry into the real positions. Letting every position see
+        # itself leaves the real positions unchanged: none of them attends to a padding position.
+        full = full | torch.eye(n, dtype=torch.bool, device=full.device)
     linear = lm._update_linear_attn_mask(mask, None)
     pe = lm.rotary_emb(x, pos[1:] if rope_pos is None else rope_pos)
     h = x
