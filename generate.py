@@ -24,6 +24,7 @@ def main():
     ap.add_argument("--tatitok", default=None, help="local copy of the TA-TiTok VQ-128 tokenizer (default: the Hub)")
     ap.add_argument("--clip", default=None, help="local folder with CLIP ViT-L/14-336's open_clip_model.safetensors (default: the Hub)")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--exact", action="store_true", help="the reference computation (fast=False): slower, bit-exact seeds")
     a = ap.parse_args()
     prompts = list(a.prompt)
     if a.prompts_file:
@@ -31,7 +32,7 @@ def main():
     assert prompts, "give --prompt or --prompts-file"
 
     from jeveration import JeverationPipeline
-    pipe = JeverationPipeline(a.weights, decoder=a.decoder, backbone=a.backbone, tatitok=a.tatitok, clip=a.clip, device=a.device)
+    pipe = JeverationPipeline(a.weights, decoder=a.decoder, backbone=a.backbone, tatitok=a.tatitok, clip=a.clip, device=a.device, fast=not a.exact)
     os.makedirs(a.out, exist_ok=True)
     for i in range(0, len(prompts), a.batch_size):
         batch = prompts[i:i + a.batch_size]

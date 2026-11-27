@@ -33,6 +33,7 @@ def main():
     ap.add_argument("--tatitok", default=None, help="local copy of the TA-TiTok VQ-128 tokenizer (default: the Hub)")
     ap.add_argument("--clip", default=None, help="local folder with CLIP ViT-L/14-336's open_clip_model.safetensors (default: the Hub)")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--exact", action="store_true", help="the reference computation (fast=False): slower, bit-exact seeds")
     a = ap.parse_args()
 
     from jeveration import JeverationPipeline
@@ -47,7 +48,7 @@ def main():
     if a.save_source:
         Image.fromarray(source).save(a.save_source)
     pipe = JeverationPipeline(a.weights, source_decoder=a.source_decoder, backbone=a.backbone, tatitok=a.tatitok, clip=a.clip,
-                              device=a.device)
+                              device=a.device, fast=not a.exact)
     images = pipe.image_to_image(source[None], a.task, [a.caption], a.wording, pipe.generator(a.seed))
     Image.fromarray(images[0]).save(a.out)
     print(a.out)

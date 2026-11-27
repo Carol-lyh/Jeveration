@@ -40,10 +40,12 @@ def i2i_texts(task, caption="", wording=0):
 
 class JeverationPipeline:
     def __init__(self, weights, decoder=None, source_decoder=None, backbone=None, tatitok=None, clip=None, device="cuda",
-                 fix_kernels=True):
+                 fix_kernels=True, fast=False):
         """weights: the Jeveration checkpoint; decoder / source_decoder: the 512-px decoder checkpoints for text_to_image /
         image_to_image; backbone, tatitok, clip: local copies of the public models (None: the Hugging Face Hub);
-        fix_kernels: hold the linear-attention kernels at one configuration, so that a seed is reproducible (kernels.py)."""
+        fix_kernels: hold the linear-attention kernels at one configuration, so that a seed is reproducible (kernels.py);
+        fast: bfloat16 weights where autocast uses them anyway, tuned GEMMs, padded prompt lengths, and replace the slow torch fallback of the linear attention (fast.py):
+        faster, the images differ from fast=False in the last bits of the computation."""
         self.device = torch.device(device)
         cuda = self.device.type == "cuda"
         if cuda:
@@ -60,8 +62,18 @@ class JeverationPipeline:
                               f"{', '.join(n.rsplit('.', 1)[-1] for n in left)}. One seed can then give slightly different "
                               f"results in different processes.")
         lat_mean, lat_std = self.model.load_weights(weights)
+        if fast:
+            from .fast import enable_gemm_tuning, lora_to, patch_linear_attention, replace_slow_convs
+            if cuda:
+                enable_gemm_tuning(self.device)
+            if cuda:
+                lora_to(self.model.lm)
+            patch_linear_attention(self.model.lm)
+            replace_slow_convs(self.model.lm)
         tok = load_text_tokenizer(backbone)
         self.ptok, self.sptok = PromptTokenizer(tok), SourcePromptTokenizer(tok)
+        if fast:
+            self.ptok.pad_multiple = 16
         self.codec = None
         if decoder or source_decoder:
             self.codec = ImageCodec(tatitok, clip).to(self.device)
@@ -70,6 +82,15 @@ class JeverationPipeline:
                 self.codec.load_decoder(decoder)
             if source_decoder:
                 self.codec.load_source_decoder(source_decoder)
+            if fast and cuda:              # these run under autocast only (bfloat16)
+                from .fast import replace_slow_convs, store_autocast_weights
+                for m in (self.codec.decoder, self.codec.source_decoder):
+                    if m is not None:
+                        store_autocast_weights(m)
+                        replace_slow_convs(m)
+        if fast and cuda:
+            from .fast import store_autocast_weights
+            store_autocast_weights(self.model.head)
 
     def generator(self, seed):
         """a random generator on the pipeline's device; one generator drives all draws of a call"""

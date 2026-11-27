@@ -25,13 +25,14 @@ def main():
     ap.add_argument("--out", default="dense")
     ap.add_argument("--backbone", default=None, help="local copy of Qwen3.5-4B (default: the Hugging Face Hub)")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--exact", action="store_true", help="the reference computation (fast=False): slower, bit-exact seeds")
     a = ap.parse_args()
     tasks = tuple(t for t in a.tasks.split(",") if t)
     assert tasks and all(t in config.DENSE_TASKS for t in tasks), a.tasks
 
     from jeveration import JeverationPipeline
     from jeveration.dense import depth_view, normal_view, seg_view
-    pipe = JeverationPipeline(a.weights, backbone=a.backbone, device=a.device)
+    pipe = JeverationPipeline(a.weights, backbone=a.backbone, device=a.device, fast=not a.exact)
     image = np.asarray(Image.open(a.image).convert("RGB"), dtype=np.uint8)
     pred = {t: v[0].cpu().numpy() for t, v in pipe.dense_predict(image[None], tasks).items()}
     os.makedirs(a.out, exist_ok=True)
