@@ -2,3 +2,11 @@ __pycache__/
 *.pyc
 weights/
 samples/
+.venv/
+weights/
+bench*/
+samples/
+constraints-rocm.txt
+requirements-amd.txt
+tuning/
+compare/

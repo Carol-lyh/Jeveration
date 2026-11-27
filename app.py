@@ -196,7 +196,7 @@ def load(a):
         paths = {name: p or hf_hub_download(WEIGHTS_REPO, name) for name, p in paths.items()}
     pipe = JeverationPipeline(paths["jeveration.pt"], decoder=paths["decoder512.pt"],
                               source_decoder=paths["source_decoder512.pt"], backbone=a.backbone, tatitok=a.tatitok,
-                              clip=a.clip, device=a.device)
+                              clip=a.clip, device=a.device, fast=not a.exact)
     if spaces is None:                                      # compile the kernels before the first visitor's request
         for _ in range(2):
             text_to_image(pipe, T2I_EXAMPLES[0], 0)
@@ -212,6 +212,7 @@ def main():
     ap.add_argument("--tatitok", default=None, help="local copy of the TA-TiTok VQ-128 tokenizer (default: the Hub)")
     ap.add_argument("--clip", default=None, help="local folder with CLIP ViT-L/14-336's open_clip_model.safetensors (default: the Hub)")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--exact", action="store_true", help="the reference computation (fast=False): slower, bit-exact seeds")
     ap.add_argument("--host", default=None, help="address to listen on (default 127.0.0.1; 0.0.0.0: reachable from other machines)")
     ap.add_argument("--port", type=int, default=None, help="default 7860")
     ap.add_argument("--share", action="store_true", help="also create a temporary public link (gradio.live)")

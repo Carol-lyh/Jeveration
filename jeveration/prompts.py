@@ -22,6 +22,9 @@ class PromptTokenizer:
         self.head_ids = tok(head, add_special_tokens=False)["input_ids"]
         self.tail_ids = tok(tail, add_special_tokens=False)["input_ids"]
         self.pad_id = tok.pad_token_id
+        # >1: pad every batch on the left to a multiple of this length, so that only a few sequence lengths (GEMM shapes) occur
+        # (tuned GEMMs, fast.enable_gemm_tuning). Padding is masked, and the linear-attention layers zero it: same images.
+        self.pad_multiple = 1
 
     def encode(self, prompt):
         ids = self.tok(prompt, add_special_tokens=False)["input_ids"]
@@ -31,6 +34,7 @@ class PromptTokenizer:
         """list of prompts -> (ids [B, L], mask [B, L]), left padded"""
         rows = [self.encode(p) for p in prompts]
         n = max(len(r) for r in rows)
+        n = -(-n // self.pad_multiple) * self.pad_multiple
         ids = torch.full((len(rows), n), self.pad_id, dtype=torch.long)
         mask = torch.zeros((len(rows), n), dtype=torch.long)
         for i, r in enumerate(rows):
